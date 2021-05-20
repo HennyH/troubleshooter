@@ -7,8 +7,8 @@ from troubleshooter import Scenario, perform_subsitutions, parse_node_invocation
 def index():
     return static_file("index.html", root=".")
 
-@post("/scenarios/nodes/choices")
-def get_scenario_choices():
+@post("/scenarios/nodes")
+def get_secnario_node():
     data = json.load(request.body)
     if "scenario_filename" not in data:
         abort(400, "The field 'scenario_filename' must be present in the json request")            

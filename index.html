@@ -22,13 +22,34 @@
     <div id="choices"></div>
     <script type="text/javascript">
 
-    let scenarioFilename = null;
-    let node = null;
-
-    function render() {
+    /*
+     * The `render` function is responsible for displaying a UI
+     * for the `node` of the given `scenarioFilename` passed in. The passed in node should be an
+     * object of the following form:
+     * 
+     * {
+     *     "node_id": "...",
+     *     "prompt": "...",
+     *     "choices": [
+     *         {
+     *             "text": "...",
+     *             "next_node_id": "...",
+     *             "next_variables": {}
+     *         },
+     *         ...
+     *     ]
+     * }
+     * 
+     * It should display the prompt (`node.prompt`) and then create buttons (or something)
+     * for selecting one of the choices in `node.choices`. When a choice is clicked or whatever
+     * it should call `loadChoices` ASYNCHRONOUSLY (look at the async/await stuff - if you don't
+     * get it ask me!) and then call `render` again on the node we got from the API.
+     */
+    function render(scenarioFilename, node) {
         const choicesElement = document.getElementById("choices");
         choicesElement.textContent = '';
-
+        
+        /* If they gave us an invalid node then we will just leave the screen empty? */
         if (node === null) return;
 
         const promptElement = document.createElement("h2");
@@ -38,9 +59,12 @@
         for (const choice of node.choices) {
             const choiceText = document.createElement("button");
             choiceText.textContent = choice.text;
+            /* the event listener's callback (the function we passed in) doesn't get called immedietly,
+             * it will get called when we click the button.
+             */
             choiceText.addEventListener("click", async () => {
-                await loadChoices(choice.next_node_id, choice.next_variables);
-                render();
+                const nextNode = await fetchNode(scenarioFilename, choice.next_node_id, choice.next_variables);
+                render(scenarioFilename, nextNode);
             });
             choicesElement.appendChild(choiceText)
         }
@@ -52,16 +76,37 @@
         submitEvent.stopPropagation();
         const scenarioFilenameElement = document.getElementById("scenario-filename");
         scenarioFilename = scenarioFilenameElement.value;
-        await loadChoices(null, {});
-        render();
+        const rootNode = await fetchNode(scenarioFilename, null, {});
+        render(scenarioFilename, rootNode);
     } 
 
     const scnerioForm = document.getElementById("scenario-form");
     scnerioForm.addEventListener("submit", handleScenrioFormSubmitted);
 
-    
-    async function loadChoices(node_id, variables) {
-        const response = await fetch("/scenarios/nodes/choices", {
+        
+    /*
+     * Fetch the data to describe a node by it's ID in a given scenario file.
+     * This will invoke an endpoint defined in `api.py` and then return the data
+     * in the following format:
+     * 
+     * {
+     *     "node_id": "...",
+     *     "prompt": "...",
+     *     "choices": [
+     *         {
+     *             "text": "...",
+     *             "next_node_id": "...",
+     *             "next_variables": {}
+     *         },
+     *         ...
+     *     ]
+     * }
+     * 
+     * If node_id is `null` or `undefined` then we will have the ROOT node
+     * of the scenario returned to us.
+     */
+    async function fetchNode(scenarioFilename, node_id, variables) {
+        const response = await fetch("/scenarios/nodes", {
             method: "POST",
             headers: {
                 'Content-Type': 'application/json'
@@ -72,24 +117,7 @@
                 "variables": variables
             })
         });
-        /*
-         * The returned data is of the form:
-         *
-         * {
-         *     "node_id": "...",
-         *     "prompt": "...",
-         *     "choices": [
-         *         {
-         *             "text": "...",
-         *             "next_node_id": "...",
-         *             "next_variables": {}
-         *         },
-         *         ...
-         *     ]
-         * }
-         * 
-         */
-        node = await response.json();
+        return await response.json();
     }
 
     </script>
