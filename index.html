@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Troubleshooter</title>
+    <style>
+        #choices > button {
+            margin: 0.5em;
+            padding: 0.5em;
+        }
+    </style>
+</head>
+<body>
+    <h1>Troubleshooter</h1>
+    <form id="scenario-form">
+        <input type="text" name="scenario-filename" id="scenario-filename">
+        <input type="submit" value="Load Scenario">
+    </form>
+    <!-- choices will be rendered out here -->
+    <div id="choices"></div>
+    <script type="text/javascript">
+
+    let scenarioFilename = null;
+    let node = null;
+
+    function render() {
+        const choicesElement = document.getElementById("choices");
+        choicesElement.textContent = '';
+
+        if (node === null) return;
+
+        const promptElement = document.createElement("h2");
+        promptElement.textContent = node.prompt;
+        choicesElement.appendChild(promptElement)
+
+        for (const choice of node.choices) {
+            const choiceText = document.createElement("button");
+            choiceText.textContent = choice.text;
+            choiceText.addEventListener("click", async () => {
+                await loadChoices(choice.next_node_id, choice.next_variables);
+                render();
+            });
+            choicesElement.appendChild(choiceText)
+        }
+    }
+
+    async function handleScenrioFormSubmitted(submitEvent) {
+        /* https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormElement/submit_event */
+        submitEvent.preventDefault();
+        submitEvent.stopPropagation();
+        const scenarioFilenameElement = document.getElementById("scenario-filename");
+        scenarioFilename = scenarioFilenameElement.value;
+        await loadChoices(null, {});
+        render();
+    } 
+
+    const scnerioForm = document.getElementById("scenario-form");
+    scnerioForm.addEventListener("submit", handleScenrioFormSubmitted);
+
+    
+    async function loadChoices(node_id, variables) {
+        const response = await fetch("/scenarios/nodes/choices", {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                "scenario_filename": scenarioFilename,
+                "node_id": node_id,
+                "variables": variables
+            })
+        });
+        /*
+         * The returned data is of the form:
+         *
+         * {
+         *     "node_id": "...",
+         *     "prompt": "...",
+         *     "choices": [
+         *         {
+         *             "text": "...",
+         *             "next_node_id": "...",
+         *             "next_variables": {}
+         *         },
+         *         ...
+         *     ]
+         * }
+         * 
+         */
+        node = await response.json();
+    }
+
+    </script>
+</body>
+</html>
