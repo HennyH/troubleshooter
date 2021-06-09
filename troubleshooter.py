@@ -2,15 +2,16 @@ import argparse
 import configparser
 import re
 import sys
+from collections import OrderedDict
 
 def ask_choice(prompt, choices):
     if not choices:
         return None
     lowered_choices = [o.lower().strip() for o in choices]
     while True:
-        print(f":: {prompt}")
+        print(":: {prompt}".format(prompt=prompt))
         for i, option in enumerate(choices):
-            print(f"   {i} {option}")
+            print("   {i} {option}".format(i=i, option=option))
         answer = input("> ").strip().lower()
         if answer in lowered_choices:
             return answer
@@ -50,12 +51,23 @@ def parse_node_invocation(invocation):
 
 class Node():
     """Represents a node in the decision tree."""
-    def __init__(self, node_id, text, root, **kwargs):
+    def __init__(self, node_id, text, root, settings):
         self.node_id = node_id
         self.text = text
-        self.root = False if root is None else bool(root)
-        self.choice_to_node_invocation = {}
-        for name, value in kwargs.items():
+        if root is None:
+            self.root = False
+        elif root.strip().lower() == "true":
+            self.root = True
+        elif root.strip().lower() == "false":
+            self.root = False
+        else:
+            raise ValueError(
+                "node {node_id} had a root value of {root} which could not be parsed".format(
+                    node_id=node_id,
+                    root=root
+                ))
+        self.choice_to_node_invocation = OrderedDict()
+        for name, value in settings.items():
             branch_match = re.match(r"if_(?P<choice>\w+)", name, re.I)
             if not branch_match:
                 continue
@@ -80,7 +92,13 @@ class Node():
         return parse_node_invocation(node_invocation)
 
     def __str__(self):
-        return f"Node(id={self.node_id}, text={self.text}, root={self.root}, choices={self.choice_to_node_invocation})"
+        return "Node(id={node_id}, text={text}, root={root}, choices={choices})".format(
+            node_id=self.node_id,
+            text=self.text,
+            root=self.root,
+            choices=self.choice_to_node_invocation
+        )
+            
 
 
 class Scenario():
@@ -94,11 +112,21 @@ class Scenario():
                 continue
             if settings.get("text") is None:
                 raise ValueError("Each node must contain a text setting")
-            self.node_id_to_node[node_id] = Node(node_id, **settings)
+            text = settings.get("text")
+            if text is not None:
+                del settings["text"]
+            root = settings.get("root")
+            if root is not None:
+                del settings["root"]
+            self.node_id_to_node[node_id] = Node(
+                node_id,
+                text,
+                root,
+                settings)
 
     def get_node(self, node_id):
         if not re.match(r"\w+", node_id, re.I):
-            raise ValueError(f"Invalid node id {node_id}")
+            raise ValueError("Invalid node id {node_id}".format(node_id=node_id))
         return self.node_id_to_node.get(node_id)
 
     def get_root_node_id(self):
@@ -120,7 +148,7 @@ class Troubleshooter():
         while node_id is not None:
             node = self.scenario.get_node(node_id)
             if node is None:
-                raise Exception(f"Node with id {node_id} could not be found")
+                raise Exception("Node with id {node_id} could not be found".format(node_id=node_id))
             next = node.run(variables)
             if next is None:
                 return "OK"
@@ -128,7 +156,7 @@ class Troubleshooter():
 
 
 def main(argv=None):
-    argv = argv or sys.argv[1:]
+    argv = argv or sys.argv[1:] or ["--scenario", input("scenario filename: ")]
     parser = argparse.ArgumentParser("Troubleshooter")
     parser.add_argument("--scenario",
                         type=argparse.FileType("r"),
