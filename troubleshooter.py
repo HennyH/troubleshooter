@@ -2,7 +2,6 @@ import argparse
 import configparser
 import re
 import sys
-from typing import Dict, Iterable, Optional, Tuple
 
 def ask_choice(prompt, choices):
     if not choices:
@@ -35,7 +34,7 @@ def perform_subsitutions(text, variables):
                   text)
 
 
-def parse_node_invocation(invocation: str) -> Tuple[str, Dict[str, str]]:
+def parse_node_invocation(invocation):
     """Parse a node invocation like `switch_on [(param:value), ...]` into node_id and the variable dict."""
     node_id_and_maybe_variables_text = re.split(
         r"\s+", invocation.strip(), maxsplit=1)
@@ -51,7 +50,7 @@ def parse_node_invocation(invocation: str) -> Tuple[str, Dict[str, str]]:
 
 class Node():
     """Represents a node in the decision tree."""
-    def __init__(self, node_id, text: str, root: Optional[bool] = False, **kwargs):
+    def __init__(self, node_id, text, root, **kwargs):
         self.node_id = node_id
         self.text = text
         self.root = False if root is None else bool(root)
@@ -66,7 +65,7 @@ class Node():
                     "A choice text cannot be empty, if_<x> must have a non-empty x")
             self.choice_to_node_invocation[choice] = value
 
-    def run(self, variables: Dict[str, str]) -> Optional[Tuple[str, Dict[str, str]]]:
+    def run(self, variables):
         """Run the node, returning the next node and invocation variables if any."""
         choices = []
         for choice, _ in self.choice_to_node_invocation.items():
@@ -86,7 +85,7 @@ class Node():
 
 class Scenario():
     """Represents a collection of nodes for a troubleshooting scenario."""
-    def __init__(self, config_file_obj: Iterable[str]):
+    def __init__(self, config_file_obj):
         config_parser = configparser.ConfigParser()
         config_parser.read_file(config_file_obj)
         self.node_id_to_node = {}
@@ -97,12 +96,12 @@ class Scenario():
                 raise ValueError("Each node must contain a text setting")
             self.node_id_to_node[node_id] = Node(node_id, **settings)
 
-    def get_node(self, node_id: str) -> Node:
+    def get_node(self, node_id):
         if not re.match(r"\w+", node_id, re.I):
             raise ValueError(f"Invalid node id {node_id}")
         return self.node_id_to_node.get(node_id)
 
-    def get_root_node_id(self) -> str:
+    def get_root_node_id(self):
         for id, node in self.node_id_to_node.items():
             if node.root == True:
                 return id
