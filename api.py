@@ -9,14 +9,14 @@ def index():
 
 @post("/scenarios/nodes")
 def get_secnario_node():
-    data = json.load(request.body)
+    data = request.json
     if "scenario_filename" not in data:
         abort(400, "The field 'scenario_filename' must be present in the json request")            
     scenario_filename = data["scenario_filename"] 
     node_id = data.get("node_id", None)
     variables = data.get("variables", {})
     if not os.path.exists(scenario_filename):
-        abort(404, f"scenario file {scenario_filename} not found")
+        abort(404, "scenario file {scenario_filename} not found".format(scenario_filename=scenario_filename))
     with open(scenario_filename, "r") as scenario_fileobj:
         scenario = Scenario(scenario_fileobj)
         node = \
@@ -24,7 +24,10 @@ def get_secnario_node():
             if node_id is None \
             else scenario.get_node(node_id)
         if node is None:
-            abort(404, f"No such node {node_id} exists in the {scenario_filename} scenario")
+            abort(404, "No such node {node_id} exists in the {scenario_filename} scenario".format(
+                node_id=node_id,
+                scenario_filename=scenario_filename
+            ))
         result = {
             "node_id": node.node_id,
             "prompt": perform_subsitutions(node.text, variables),
